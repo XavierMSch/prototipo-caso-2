@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>NEXORA — Cola nocturna priorizada</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F3F5F3}
+a{color:#1F4D36}a:hover{color:#14291F}
+button{font-family:inherit}
+button:disabled{opacity:.35;cursor:default}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #F3F5F3; color: #18231D; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.45">
+
+  <header style="background: #14291F; color: #E8EFEA">
+    <div style="max-width: 1280px; margin: 0 auto; padding: 16px 24px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px">
+      <div style="display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap">
+        <span style="font-weight: 600; font-size: 18px; letter-spacing: 0.12em">NEXORA</span>
+        <span style="color: #A9BDB0; font-size: 13px">Cola de urgencias TC/RX · Turno nocturno simulado</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 16px; font-size: 13px; color: #C9D6CD">
+        <span>Hora del turno <span style="font-family: 'IBM Plex Mono', monospace; color: #FFFFFF">{{now}}</span></span>
+        <span>Radiólogo de turno</span>
+      </div>
+    </div>
+  </header>
+
+  <nav style="background: #FFFFFF; border-bottom: 1px solid #D6DED8">
+    <div style="max-width: 1280px; margin: 0 auto; padding: 0 24px; display: flex; flex-wrap: wrap; gap: 4px">
+      <button type="button" onClick="{{goCola}}" style="{{tabCola}}">Cola priorizada</button>
+      <button type="button" onClick="{{goVenc}}" style="{{tabVenc}}">Vencimientos por establecimiento</button>
+      <button type="button" onClick="{{goLog}}" style="{{tabLog}}">Registro de reordenamientos ({{logCount}})</button>
+    </div>
+  </nav>
+
+  <main style="max-width: 1280px; margin: 0 auto; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+
+    <!-- F1 + F2: Cola priorizada -->
+    <sc-if value="{{isCola}}" hint-placeholder-val="{{ true }}">
+      <div style="display: flex; flex-direction: column; gap: 16px">
+        <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px">
+          <div>
+            <h1 style="margin: 0; font-size: 20px; font-weight: 600; color: #14291F">Cola priorizada</h1>
+            <p style="margin: 4px 0 0; color: #4E5D54">Orden por sospecha crítica y plazo del establecimiento. {{total}} estudios en espera · {{critCount}} con sospecha crítica.</p>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; color: #4E5D54">
+            <span style="display: flex; align-items: center; gap: 6px"><span style="width: 10px; height: 10px; border-radius: 50%; background: #B42318"></span>Vencido o ≤ 10 min</span>
+            <span style="display: flex; align-items: center; gap: 6px"><span style="width: 10px; height: 10px; border-radius: 50%; background: #C98A1B"></span>11–20 min</span>
+            <span style="display: flex; align-items: center; gap: 6px"><span style="width: 10px; height: 10px; border-radius: 50%; background: #2E7D4F"></span>Más de 20 min</span>
+          </div>
+        </div>
+
+        <sc-if value="{{hasPending}}" hint-placeholder-val="{{ false }}">
+          <div style="background: #FFFFFF; border: 1px solid #1F4D36; border-radius: 6px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+            <div style="font-weight: 600; color: #14291F">Reordenar {{pending.id}}: posición {{pending.from}} → {{pending.to}}</div>
+            <div style="color: #4E5D54; font-size: 13px">Seleccione el motivo. El cambio quedará registrado.</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px">
+              <sc-for list="{{reasons}}" as="r" hint-placeholder-count="4">
+                <button type="button" onClick="{{r.pick}}" style="min-height: 40px; padding: 0 14px; border-radius: 4px; border: 1px solid #1F4D36; background: #1F4D36; color: #FFFFFF; font-size: 13px; cursor: pointer">{{r.label}}</button>
+              </sc-for>
+              <button type="button" onClick="{{cancel}}" style="min-height: 40px; padding: 0 14px; border-radius: 4px; border: 1px solid #B8C4BC; background: #FFFFFF; color: #18231D; font-size: 13px; cursor: pointer">Cancelar</button>
+            </div>
+          </div>
+        </sc-if>
+
+        <div style="background: #FFFFFF; border: 1px solid #D6DED8; border-radius: 6px; overflow-x: auto">
+          <div style="min-width: 1040px">
+            <div style="display: grid; grid-template-columns: 44px 120px 1.5fr 1fr 72px 72px 2.3fr 104px; gap: 12px; padding: 10px 16px; background: #EAF0EC; color: #3E4C44; font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em">
+              <div>#</div><div>Vencimiento</div><div>Estudio</div><div>Establecimiento</div><div>Recibido</div><div>Vence</div><div>Motivo del orden</div><div>Mover</div>
+            </div>
+            <sc-for list="{{rows}}" as="row" hint-placeholder-count="8">
+              <div style="{{row.rowStyle}}">
+                <div style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; color: #14291F">{{row.pos}}</div>
+                <div style="display: flex; align-items: center; gap: 8px">
+                  <span style="{{row.dot}}"></span>
+                  <span style="font-size: 13px">{{row.lightLabel}}</span>
+                </div>
+                <div>
+                  <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #14291F">{{row.id}}</div>
+                  <div style="color: #4E5D54; font-size: 13px">{{row.exam}}</div>
+                </div>
+                <div>
+                  <div>{{row.est}}</div>
+                  <div style="color: #4E5D54; font-size: 12px">Plazo {{row.plazo}} min</div>
+                </div>
+                <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px">{{row.rec}}</div>
+                <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px">{{row.due}}</div>
+                <div style="display: flex; flex-direction: column; gap: 4px">
+                  <span style="{{row.reasonStyle}}">{{row.reason}}</span>
+                  <span style="color: #4E5D54; font-size: 13px">{{row.timeText}}</span>
+                  <sc-if value="{{row.manual}}" hint-placeholder-val="{{ false }}">
+                    <span style="align-self: flex-start; font-size: 12px; padding: 2px 8px; border-radius: 3px; background: #EAF0EC; color: #1F4D36">Ajuste manual · {{row.manualReason}}</span>
+                  </sc-if>
+                </div>
+                <div style="display: flex; gap: 6px">
+                  <button type="button" aria-label="Subir en la cola" onClick="{{row.up}}" disabled="{{row.upDisabled}}" style="width: 44px; height: 40px; border-radius: 4px; border: 1px solid #B8C4BC; background: #FFFFFF; color: #14291F; cursor: pointer; display: flex; align-items: center; justify-content: center">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"></path></svg>
+                  </button>
+                  <button type="button" aria-label="Bajar en la cola" onClick="{{row.down}}" disabled="{{row.downDisabled}}" style="width: 44px; height: 40px; border-radius: 4px; border: 1px solid #B8C4BC; background: #FFFFFF; color: #14291F; cursor: pointer; display: flex; align-items: center; justify-content: center">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 3v10M3.5 8.5 8 13l4.5-4.5"></path></svg>
+                  </button>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <p style="margin: 0; color: #4E5D54; font-size: 12px">Datos simulados a partir de estudios anonimizados. La sospecha crítica proviene de hallazgos ya confirmados; no es un diagnóstico.</p>
+      </div>
+    </sc-if>
+
+    <!-- F3: Vencimientos por establecimiento -->
+    <sc-if value="{{isVenc}}" hint-placeholder-val="{{ false }}">
+      <div style="display: flex; flex-direction: column; gap: 16px">
+        <div>
+          <h1 style="margin: 0; font-size: 20px; font-weight: 600; color: #14291F">Vencimientos por establecimiento</h1>
+          <p style="margin: 4px 0 0; color: #4E5D54">Estado del plazo contratado de cada establecimiento durante el turno, ordenado por el próximo vencimiento.</p>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px">
+          <sc-for list="{{ests}}" as="e" hint-placeholder-count="4">
+            <div style="background: #FFFFFF; border: 1px solid #D6DED8; border-radius: 6px; padding: 18px; display: flex; flex-direction: column; gap: 14px">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px">
+                <div>
+                  <div style="font-weight: 600; font-size: 16px; color: #14291F">{{e.name}}</div>
+                  <div style="color: #4E5D54; font-size: 13px">Plazo contratado: {{e.plazo}} min</div>
+                </div>
+                <span style="{{e.pill}}">{{e.status}}</span>
+              </div>
+              <div style="border-top: 1px solid #E3E9E5; padding-top: 12px">
+                <div style="color: #4E5D54; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em">Próximo vencimiento</div>
+                <div style="display: flex; align-items: baseline; gap: 10px; margin-top: 4px">
+                  <span style="font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 500; color: #14291F">{{e.nextTime}}</span>
+                  <span style="color: #4E5D54; font-size: 13px">{{e.nextId}}</span>
+                </div>
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; text-align: center">
+                <div style="background: #F3F5F3; border-radius: 4px; padding: 8px 4px"><div style="font-family: 'IBM Plex Mono', monospace; font-size: 18px">{{e.total}}</div><div style="font-size: 11px; color: #4E5D54">En cola</div></div>
+                <div style="background: #F3F5F3; border-radius: 4px; padding: 8px 4px"><div style="font-family: 'IBM Plex Mono', monospace; font-size: 18px; color: #B42318">{{e.over}}</div><div style="font-size: 11px; color: #4E5D54">Vencidos</div></div>
+                <div style="background: #F3F5F3; border-radius: 4px; padding: 8px 4px"><div style="font-family: 'IBM Plex Mono', monospace; font-size: 18px; color: #8A5A0B">{{e.soon}}</div><div style="font-size: 11px; color: #4E5D54">≤ 20 min</div></div>
+                <div style="background: #F3F5F3; border-radius: 4px; padding: 8px 4px"><div style="font-family: 'IBM Plex Mono', monospace; font-size: 18px; color: #2E7D4F">{{e.ok}}</div><div style="font-size: 11px; color: #4E5D54">En plazo</div></div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- F2: Registro -->
+    <sc-if value="{{isLog}}" hint-placeholder-val="{{ false }}">
+      <div style="display: flex; flex-direction: column; gap: 16px">
+        <div>
+          <h1 style="margin: 0; font-size: 20px; font-weight: 600; color: #14291F">Registro de reordenamientos</h1>
+          <p style="margin: 4px 0 0; color: #4E5D54">Cada cambio manual del orden sugerido, con su motivo. El radiólogo conserva la decisión final.</p>
+        </div>
+        <sc-if value="{{noLog}}" hint-placeholder-val="{{ true }}">
+          <div style="background: #FFFFFF; border: 1px solid #D6DED8; border-radius: 6px; padding: 32px; text-align: center; color: #4E5D54">Aún no hay reordenamientos manuales en este turno.</div>
+        </sc-if>
+        <sc-if value="{{hasLog}}" hint-placeholder-val="{{ false }}">
+          <div style="background: #FFFFFF; border: 1px solid #D6DED8; border-radius: 6px; overflow-x: auto">
+            <div style="min-width: 760px">
+              <div style="display: grid; grid-template-columns: 72px 120px 100px 1.6fr 1fr; gap: 12px; padding: 10px 16px; background: #EAF0EC; color: #3E4C44; font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em">
+                <div>Hora</div><div>Estudio</div><div>Posición</div><div>Motivo</div><div>Usuario</div>
+              </div>
+              <sc-for list="{{log}}" as="l" hint-placeholder-count="2">
+                <div style="display: grid; grid-template-columns: 72px 120px 100px 1.6fr 1fr; gap: 12px; padding: 12px 16px; border-top: 1px solid #E3E9E5; align-items: center">
+                  <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px">{{l.time}}</div>
+                  <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #14291F">{{l.id}}</div>
+                  <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px">{{l.from}} → {{l.to}}</div>
+                  <div>{{l.reason}}</div>
+                  <div style="color: #4E5D54">Radiólogo de turno</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="color: #4E5D54; font-size: 13px">Tasa de reordenamiento del turno: {{rate}}</div>
+        </sc-if>
+      </div>
+    </sc-if>
+
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":1000}}'>
+class Component extends DCLogic {
+  data() {
+    return {
+      now: 160,
+      plazos: { 'Hospital A': 30, 'Hospital B': 45, 'Clínica C': 60, 'SAPU D': 60 },
+      studies: [
+        { id: 'N-2318', est: 'Hospital B', exam: 'TC de cráneo', rec: 132, crit: 'Sospecha de hemorragia intracraneal' },
+        { id: 'N-2321', est: 'Hospital A', exam: 'AngioTC de tórax', rec: 140, crit: 'Sospecha de tromboembolismo pulmonar' },
+        { id: 'N-2309', est: 'Clínica C', exam: 'RX de tórax', rec: 105, crit: '' },
+        { id: 'N-2314', est: 'Hospital A', exam: 'TC de abdomen', rec: 125, crit: '' },
+        { id: 'N-2325', est: 'SAPU D', exam: 'RX de tórax', rec: 151, crit: 'Sospecha de neumotórax' },
+        { id: 'N-2322', est: 'Hospital B', exam: 'TC de columna cervical', rec: 142, crit: '' },
+        { id: 'N-2327', est: 'Hospital A', exam: 'TC de cráneo', rec: 154, crit: '' },
+        { id: 'N-2319', est: 'Clínica C', exam: 'TC de cráneo', rec: 135, crit: '' },
+        { id: 'N-2326', est: 'Hospital B', exam: 'RX de pelvis', rec: 153, crit: '' },
+        { id: 'N-2330', est: 'SAPU D', exam: 'RX de extremidad', rec: 158, crit: '' },
+        { id: 'N-2316', est: 'Clínica C', exam: 'TC de abdomen', rec: 128, crit: 'Sospecha de aire libre (perforación)' }
+      ]
+    };
+  }
+  hhmm(m) {
+    const h = Math.floor(m / 60) % 24, mm = m % 60;
+    return String(h).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+  }
+  light(r) {
+    if (r <= 0) return { label: 'Vencido', color: '#B42318', bg: '#FBEAE8', fg: '#8E1C13' };
+    if (r <= 10) return { label: r + ' min', color: '#B42318', bg: '#FBEAE8', fg: '#8E1C13' };
+    if (r <= 20) return { label: r + ' min', color: '#C98A1B', bg: '#FBF1DF', fg: '#7A4F08' };
+    return { label: r + ' min', color: '#2E7D4F', bg: '#E5F2EA', fg: '#1F5A37' };
+  }
+  defaultOrder(list) {
+    return list.slice().sort((a, b) => {
+      if (!!a.crit !== !!b.crit) return a.crit ? -1 : 1;
+      return a.remaining - b.remaining;
+    }).map((s) => s.id);
+  }
+  ask(order, idx, dir) {
+    const to = idx + dir;
+    if (to < 0 || to >= order.length) return;
+    this.setState({ pending: { id: order[idx], fromIdx: idx, toIdx: to } });
+  }
+  confirm(order, reason) {
+    const p = this.state.pending;
+    if (!p) return;
+    const next = order.slice();
+    const tmp = next[p.toIdx]; next[p.toIdx] = next[p.fromIdx]; next[p.fromIdx] = tmp;
+    const d = this.data();
+    const log = (this.state.log || []).slice();
+    log.unshift({ time: this.hhmm(d.now), id: p.id, from: p.fromIdx + 1, to: p.toIdx + 1, reason: reason });
+    const manual = Object.assign({}, this.state.manual || {});
+    manual[p.id] = reason;
+    this.setState({ order: next, pending: null, log: log, manual: manual });
+  }
+  renderVals() {
+    const d = this.data();
+    const view = (this.state && this.state.view) || 'cola';
+    const list = d.studies.map((s) => {
+      const plazo = d.plazos[s.est];
+      return Object.assign({}, s, { plazo: plazo, dueMin: s.rec + plazo, remaining: s.rec + plazo - d.now });
+    });
+    const byId = {};
+    list.forEach((s) => { byId[s.id] = s; });
+    const order = (this.state && this.state.order) || this.defaultOrder(list);
+    const pending = (this.state && this.state.pending) || null;
+    const manual = (this.state && this.state.manual) || {};
+    const log = (this.state && this.state.log) || [];
+
+    const rows = order.map((id, i) => {
+      const s = byId[id];
+      const L = this.light(s.remaining);
+      const isPending = pending && pending.id === id;
+      return {
+        pos: i + 1,
+        id: s.id,
+        exam: s.exam,
+        est: s.est,
+        plazo: s.plazo,
+        rec: this.hhmm(s.rec),
+        due: this.hhmm(s.dueMin),
+        lightLabel: L.label,
+        dot: 'display:inline-block;width:12px;height:12px;border-radius:50%;flex:none;background:' + L.color,
+        reason: s.crit ? 'Sospecha crítica: ' + s.crit : 'Sin sospecha crítica',
+        reasonStyle: s.crit ? 'font-weight:600;color:#14291F' : 'color:#18231D',
+        timeText: s.remaining <= 0 ? 'Plazo vencido hace ' + (-s.remaining) + ' min' : 'Vence en ' + s.remaining + ' min',
+        manual: !!manual[id],
+        manualReason: manual[id] || '',
+        rowStyle: 'display:grid;grid-template-columns:44px 120px 1.5fr 1fr 72px 72px 2.3fr 104px;gap:12px;padding:12px 16px;border-top:1px solid #E3E9E5;align-items:center;background:' + (isPending ? '#EAF0EC' : '#FFFFFF'),
+        upDisabled: i === 0,
+        downDisabled: i === order.length - 1,
+        up: () => this.ask(order, i, -1),
+        down: () => this.ask(order, i, 1)
+      };
+    });
+
+    const reasonLabels = ['Información clínica adicional', 'Solicitud del médico de urgencia', 'Sospecha no corresponde', 'Otro motivo'];
+    const reasons = reasonLabels.map((label) => ({ label: label, pick: () => this.confirm(order, label) }));
+
+    const ests = Object.keys(d.plazos).map((name) => {
+      const ss = list.filter((s) => s.est === name).sort((a, b) => a.remaining - b.remaining);
+      const over = ss.filter((s) => s.remaining <= 0).length;
+      const soon = ss.filter((s) => s.remaining > 0 && s.remaining <= 20).length;
+      const ok = ss.filter((s) => s.remaining > 20).length;
+      const next = ss[0];
+      const L = this.light(next ? next.remaining : 999);
+      const status = over > 0 ? 'Con vencidos' : (next && next.remaining <= 20 ? 'En riesgo' : 'En plazo');
+      return {
+        name: name,
+        plazo: d.plazos[name],
+        total: ss.length,
+        over: over,
+        soon: soon,
+        ok: ok,
+        sortKey: next ? next.remaining : 999,
+        nextTime: next ? (next.remaining <= 0 ? 'Vencido' : next.remaining + ' min') : '—',
+        nextId: next ? next.id + ' · ' + next.exam : '',
+        status: status,
+        pill: 'font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px;white-space:nowrap;background:' + L.bg + ';color:' + L.fg
+      };
+    }).sort((a, b) => a.sortKey - b.sortKey);
+
+    const tabBase = 'min-height:48px;padding:0 16px;border:none;background:none;font-size:14px;cursor:pointer;border-bottom:3px solid ';
+    const tab = (v) => tabBase + (view === v ? '#1F4D36;color:#14291F;font-weight:600' : 'transparent;color:#4E5D54;font-weight:400');
+    const setView = (v) => () => this.setState({ view: v, pending: null });
+
+    return {
+      now: this.hhmm(d.now),
+      isCola: view === 'cola',
+      isVenc: view === 'venc',
+      isLog: view === 'log',
+      tabCola: tab('cola'),
+      tabVenc: tab('venc'),
+      tabLog: tab('log'),
+      goCola: setView('cola'),
+      goVenc: setView('venc'),
+      goLog: setView('log'),
+      total: list.length,
+      critCount: list.filter((s) => s.crit).length,
+      rows: rows,
+      hasPending: !!pending,
+      pending: pending ? { id: pending.id, from: pending.fromIdx + 1, to: pending.toIdx + 1 } : { id: '', from: '', to: '' },
+      reasons: reasons,
+      cancel: () => this.setState({ pending: null }),
+      ests: ests,
+      log: log,
+      logCount: log.length,
+      hasLog: log.length > 0,
+      noLog: log.length === 0,
+      rate: Object.keys(manual).length + ' de ' + list.length + ' estudios con ajuste manual (' + Math.round(100 * Object.keys(manual).length / list.length) + '%)'
+    };
+  }
+}
+</script>
+</body>
+</html>
